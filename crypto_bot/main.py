@@ -1,81 +1,22 @@
-#!/usr/bin/env python
+from .binance.binance_client import BinanceClient
+from .binance.message_handler import BinanceWSMessageHandler
+from .utils.util import wait_until_keyboard_interrupt
 
-"""
-    A simple demo for how to:
-    - Create a connection to the websocket api
-    - Create a connection to the websocket stream
-    - Subscribe to the user data stream from websocket stream
-    - Create a new order from websocket api
-"""
+um_streams = [
+    "!bookTicker",
+    "!markPrice@arr",
+]
 
-import logging
-import time
-from binance.lib.utils import config_logging
-from binance.websocket.spot.websocket_api import SpotWebsocketAPIClient
-from binance.websocket.spot.websocket_stream import SpotWebsocketStreamClient
-from binance.spot import Spot as SpotAPIClient
-from dotenv import load_dotenv
-import os 
-
-config_logging(logging, logging.INFO)
-
-load_dotenv()
-
-api_key = os.getenv("BINANCE_TESTNET_API_KEY")
-api_secret = os.getenv("BINANCE_TESTNET_SECRET_KEY")
-
-def on_close(_):
-    logging.info("\n\nDo custom stuff when connection is closed")
-
-
-def websocket_api_message_handler(_, message):
-    logging.info("\n\nmessage from websocket API")
-    logging.info(message)
-
-
-def websocket_stream_message_handler(_, message):
-    logging.info("\n\nmessage from websocket stream")
-    logging.info(message)
-
-
-# make a connection to the websocket api
-ws_api_client = SpotWebsocketAPIClient(
-    stream_url="wss://testnet.binance.vision/ws-api/v3",
-    api_key=api_key,
-    api_secret=api_secret,
-    on_message=websocket_api_message_handler,
-    on_close=on_close,
+message_handler = BinanceWSMessageHandler()
+binance_client = BinanceClient(
+    message_handler=message_handler
 )
 
-# make a connection to the websocket stream
-ws_stream_client = SpotWebsocketStreamClient(
-    stream_url="wss://testnet.binance.vision",
-    on_message=websocket_stream_message_handler,
-)
+if __name__ == "__main__":
+    binance_client.start_stream(
+        um_streams=um_streams,
+    )
 
-# spot api client to call all restful api endpoints
-spot_api_client = SpotAPIClient(api_key, base_url="https://testnet.binance.vision")
-response = spot_api_client.new_listen_key()
+    wait_until_keyboard_interrupt()
 
-# You can subscribe to the user data stream from websocket stream, it will broadcast all the events
-# related to your account, including order updates, balance updates, etc.
-ws_stream_client.user_data(listen_key=response["listenKey"])
-
-time.sleep(5)
-
-# You can create a new order from websocket api
-ws_api_client.new_order(
-    symbol="BNBUSDT",
-    side="BUY",
-    type="LIMIT",
-    timeInForce="GTC",
-    quantity=1,
-    price=200,
-    newOrderRespType="RESULT",
-)
-
-time.sleep(10)
-
-logging.info("closing ws connection")
-ws_api_client.stop()
-ws_stream_client.stop()
+    binance_client.stop_stream()    
