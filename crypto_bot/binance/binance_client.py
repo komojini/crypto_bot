@@ -10,6 +10,10 @@ from crypto_bot.utils.util import get_yes_or_no_input
 
 
 class BinanceClient:
+	"""
+	Object that handles the authentication and streaming of data from Binance.
+	Supports both spot and futures data.
+	"""
 	def __init__(
 		self,
 		api_key=None,
