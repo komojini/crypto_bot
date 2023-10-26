@@ -1,14 +1,11 @@
 import os
-import json
-import time
-from datetime import datetime
 
 from binance.spot import Spot
 from binance.um_futures import UMFutures
 from binance.websocket.um_futures.websocket_client import UMFuturesWebsocketClient
 from binance.websocket.spot.websocket_stream import SpotWebsocketStreamClient
 
-from .message_handers import on_spot_message, on_um_message
+from .message_handers import BinanceWSMessageHandler
 from crypto_bot.utils.util import get_yes_or_no_input
 
 
@@ -17,16 +14,21 @@ class BinanceClient:
 		self,
 		api_key=None,
 		secret_key=None,
+		message_handler: BinanceWSMessageHandler = None,
 	):
-		self.um_client = None
-		self.spot_client = None  
+		
+		self.message_handler = message_handler
+
+		self.um_client: UMFutures = None
+		self.spot_client: Spot = None
+
 		self.spot_listen_key = None
 		self.um_listen_key = None
 
 		self._authenticate(api_key, secret_key)
 
-		self.spot_ws_stream_client = None
-		self.um_ws_client = None
+		self.spot_ws_stream_client: SpotWebsocketStreamClient = None
+		self.um_ws_client: UMFuturesWebsocketClient = None
 
 		self._initialize_websockets()
 
@@ -95,11 +97,11 @@ class BinanceClient:
 			
 	def _initialize_websockets(self) -> None:
 		self.spot_ws_stream_client = SpotWebsocketStreamClient(
-			on_message=on_spot_message,
+			on_message=self.message_handler.get_spot_message_handler(),
 			is_combined=True,
 		)
 		self.um_ws_client = UMFuturesWebsocketClient(
-			on_message=on_um_message,
+			on_message=self.message_handler.get_on_um_message_handler(),
 			is_combined=True,
 		)
 

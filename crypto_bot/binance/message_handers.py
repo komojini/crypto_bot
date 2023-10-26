@@ -1,5 +1,256 @@
 import json
 
+
+
+class BinanceWSMessageHandler:
+    """
+    A class that handles messages from the Binance websocket streams.
+    """
+    def __init__(self):
+        self.handler_tree = None
+
+        self._initialize_handler_tree()
+    
+
+    def _initialize_handler_tree(self):
+        self.handler_tree = {
+            "spot": {
+                "e": {
+                    # Market Streams
+                    "aggTrade": self._agg_trade_handler,
+                    "trade": self._trade_handler,
+                    "kline": self._kline_handler,
+                    "24hrMiniTicker": self._miniticker_handler,
+                    "24hrTicker": self._ticker_handler,
+                    "1hTicker": self._window_ticker_handler,
+                    "4hTicker": self._window_ticker_handler,
+                    "1dTicker": self._window_ticker_handler,
+
+                    # User Data Streams
+                    "outboundAccountInfo": self._outbound_account_info_handler,
+                    "balanceUpdate": self._balance_update_handler,
+                    "executionReport": self._execution_report_handler, # https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
+                    "depthUpdate": self._depth_handler,
+                    "bookTicker": self._book_ticker_handler,
+                },
+            },
+            "um_futures": {
+                "e": {
+                    # Market Streams
+                    "aggTrade": self._agg_trade_handler,
+                    "markPriceUpdate": self._mark_price_update_handler,
+                    "kline": self._kline_handler,
+                    "continuous_kline": self._continuous_kline_handler,
+                    "24hrMiniTicker": self._miniticker_handler,
+                    "24hrTicker": self._ticker_handler,
+                    "bookTicker": self._um_futures_book_ticker_handler,
+                    "forceOrder": self._force_order_handler,
+                    "depthUpdate": self._um_futures_depth_handler,
+                    "compositeIndex": self._composite_index_handler,
+                    "contractInfo": self._contract_info_handler,
+                    "assetIndexUpdate": self._asset_index_handler,
+
+                    # User Data Streams
+                    "MARGIN_CALL": self._um_futures_margin_call_handler,
+                    "ACCOUNT_UPDATE": self._um_futures_account_update_handler,
+                    "ORDER_TRADE_UPDATE": self._um_futures_order_trade_update_handler,
+                    "ACCOUNT_CONFIG_UPDATE": self._um_futures_account_config_update_handler,
+                    "STRATEGY_UPDATE": self._um_futures_strategy_update_handler,
+                    "GRID_UPDATE": self._um_futures_grid_update_handler,
+                    "CONDITIONAL_ORDER_TRIGGER_REJECT": self._um_futures_conditional_order_trigger_reject_handler,
+                },
+            },
+        }
+
+
+    UM_FUTURES_ACCOUNT_UPDATE_HANDLER_TREE = {}
+    UM_FUTURES_ORDER_TRADE_UPDATE_HANDLER_TREE = {}
+    UM_FUTURES_STRATEGY_UPDATE_HANDLER_TREE = {}
+
+    EXECUTION_REPORT_HANDLER_TREE = {
+        # See more here: https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
+        
+    }
+    
+
+    """Spot Websocket Handlers"""
+
+    def _agg_trade_handler(self, message):
+        raise NotImplementedError
+
+    def _trade_handler(self, message):
+        raise NotImplementedError
+
+    def _kline_handler(self, message):
+        raise NotImplementedError
+
+    def _ticker_handler(self, message):
+        raise NotImplementedError
+
+    def _window_ticker_handler(self, message):
+        raise NotImplementedError
+
+    def _miniticker_handler(self, message):
+        raise NotImplementedError
+
+    def _book_ticker_handler(self, message):
+        raise NotImplementedError
+
+    def _depth_handler(self, message):
+        raise NotImplementedError
+
+    def _outbound_account_info_handler(self, message):
+        raise NotImplementedError
+
+    def _balance_update_handler(self, message):
+        raise NotImplementedError
+
+    def _execution_report_handler(self, message):
+        """
+        See more here: https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
+        """
+        raise NotImplementedError
+
+
+    """UM Futures Websocket Handlers"""
+
+    
+    def _mark_price_update_handler(self, message):
+        raise NotImplementedError
+
+    def _continuous_kline_handler(self, message):
+        raise NotImplementedError
+
+    def _force_order_handler(self, message):
+        raise NotImplementedError
+
+    def _asset_index_handler(self, message):
+        raise NotImplementedError
+
+    def _composite_index_handler(self, message):
+        raise NotImplementedError 
+
+    def _asset_index_handler(self, message):
+        raise NotImplementedError
+
+    def _contract_info_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_depth_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_book_ticker_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_margin_call_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_account_update_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_order_trade_update_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_account_config_update_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_strategy_update_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_grid_update_handler(self, message):
+        raise NotImplementedError
+
+    def _um_futures_conditional_order_trigger_reject_handler(self, message):
+        raise NotImplementedError
+
+    def _unknown_event_type_handler(self, message, market: str, stream_name: str, **kwargs):
+        
+        raise Exception(f"Unknown event type: {message}\n \
+                          Market: {market}\n \
+                          Stream name: {stream_name}\n \
+                          Additional kwargs: {kwargs}")
+
+    def _handle_single_data_point(self, data_point: dict, market: str, stream_name: str):
+        """
+        Handle a single data point.
+        """
+        event_type = data_point.get("e")
+
+        if event_type:
+            handler = self.handler_tree[market]["e"].get(event_type)
+            if handler:
+                handler(data_point)
+            else:
+                self._unknown_event_type_handler(data_point, market, stream_name,
+                                            user_message="Can't find handler for event type")
+        else:
+            if "depth" in stream_name:
+                event_type = "depthUpdate"
+            elif "bookTicker" in stream_name:
+                event_type = "bookTicker"
+            else:
+                self._unknown_event_type_handler(data_point, market, stream_name)
+            
+            handler = self.HANDER_TREE[market]["e"].get(event_type)
+
+            if handler:
+                handler(data_point)
+            else:
+                self._unknown_event_type_handler(data_point, market, stream_name, 
+                                            user_message="Can't find handler for event type")
+
+
+    def _handle_multiple_data_points(self, data_points: list, market: str, stream_name: str):
+        """
+        Handle multiple data points.
+        """
+        for data_point in data_points:
+            self._handle_single_data_point(data_point, market, stream_name)
+
+
+    def _handle_error(self, error):
+        """
+        Handle an error.
+        """
+        error_code = error.get("code")
+        error_message = error.get("msg")
+
+        raise Exception(f"Error code {error_code}: {error_message}")
+
+
+    def _handle_full_message(self, message, market: str):
+        message = json.loads(message)
+        if "data" in message and "stream" in message:
+            data = message["data"]
+            stream_name = message["stream"]
+
+            del message # Free up memory
+
+            if isinstance(data, list):
+                # Multiple data points
+                self._handle_multiple_data_points(data, market, stream_name)
+            else:
+                # Single data point
+                self._handle_single_data_point(data, market, stream_name)
+        
+        else:
+            # Error
+            self._handle_error(message)
+
+
+    def get_on_um_message_handler(self) -> callable:
+        def on_um_message(_, message):
+            self._handle_full_message(message, "um_futures")
+        return on_um_message
+
+    
+    def get_spot_message_handler(self) -> callable:
+        def on_spot_message(_, message):
+            self._handle_full_message(message, "spot")
+        return on_spot_message
+
+
+
 STREAM_DESCRIPTION = {
     "spot": {
         "aggTrade": {
@@ -460,214 +711,3 @@ STREAM_DESCRIPTION = {
         }
     },
 }
-
-
-
-EXECUTION_REPORT_HANDLER_TREE = {
-    # See more here: https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
-    
-}
-
-"""Spot Websocket Handlers"""
-
-def _agg_trade_handler(message):
-    pass
-
-
-def _trade_handler(message):
-    pass
-
-
-def _kline_handler(message):
-    pass
-
-
-def _ticker_handler(message):
-    pass
-
-
-def _window_ticker_handler(message):
-    pass
-
-
-def _miniticker_handler(message):
-    pass
-
-
-def _book_ticker_handler(message):
-    pass
-
-
-def _depth_handler(message):
-    pass
-
-
-def _outbound_account_info_handler(message):
-    pass
-
-
-def _balance_update_handler(message):
-    pass
-
-
-def _execution_report_handler(message):
-    """
-    See more here: https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
-    """
-    pass
-
-
-"""UM Futures Websocket Handlers"""
-
-UM_FUTURES_ACCOUNT_UPDATE_HANDLER_TREE = {}
-UM_FUTURES_ORDER_TRADE_UPDATE_HANDLER_TREE = {}
-UM_FUTURES_STRATEGY_UPDATE_HANDLER_TREE = {}
-
-
-def _mark_price_update_handler(message):
-    pass
-
-
-def _continuous_kline_handler(message):
-    pass
-
-
-def _force_order_handler(message):
-    pass
-
-
-def _asset_index_handler(message):
-    pass
-
-
-def _composite_index_handler(message):
-    pass
-
-
-def _asset_index_handler(message):
-    pass
-
-
-def _contract_info_handler(message):
-    pass
-
-
-def _um_futures_depth_handler(message):
-    pass
-
-
-def _um_futures_book_ticker_handler(message):
-    pass
-
-
-def _um_futures_margin_call_handler(message):
-    pass
-
-
-def _um_futures_account_update_handler(message):
-    pass
-
-
-def _um_futures_order_trade_update_handler(message):
-    pass
-
-
-def _um_futures_account_config_update_handler(message):
-    pass
-
-
-def _um_futures_strategy_update_handler(message):
-    pass
-
-
-def _um_futures_grid_update_handler(message):
-    pass
-
-
-def _um_futures_conditional_order_trigger_reject_handler(message):
-    pass
-
-
-
-HANDER_TREE = {
-    "spot": {
-        "e": {
-            "aggTrade": _agg_trade_handler,
-            "trade": _trade_handler,
-            "kline": _kline_handler,
-            "24hrMiniTicker": _miniticker_handler,
-            "24hrTicker": _ticker_handler,
-            "1hTicker": _window_ticker_handler,
-            "4hTicker": _window_ticker_handler,
-            "1dTicker": _window_ticker_handler,
-
-            # User Data Streams
-            "outboundAccountInfo": _outbound_account_info_handler,
-            "balanceUpdate": _balance_update_handler,
-            "executionReport": _execution_report_handler # https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
-        },
-        "book": {
-            "depthUpdate": _depth_handler,
-            "bookTicker": _book_ticker_handler,
-        },
-    },
-    "um_futures": {
-        "e": {
-            "aggTrade": _agg_trade_handler,
-            "markPriceUpdate": _mark_price_update_handler,
-            "kline": _kline_handler,
-            "continuous_kline": _continuous_kline_handler,
-            "24hrMiniTicker": _miniticker_handler,
-            "24hrTicker": _ticker_handler,
-            "bookTicker": _um_futures_book_ticker_handler,
-            "forceOrder": _force_order_handler,
-            "depthUpdate": _um_futures_depth_handler,
-            "compositeIndex": _composite_index_handler,
-            "contractInfo": _contract_info_handler,
-            "assetIndexUpdate": _asset_index_handler,
-
-            # User Data Streams
-            "MARGIN_CALL": _um_futures_margin_call_handler,
-            "ACCOUNT_UPDATE": _um_futures_account_update_handler,
-            "ORDER_TRADE_UPDATE": _um_futures_order_trade_update_handler,
-            "ACCOUNT_CONFIG_UPDATE": _um_futures_account_config_update_handler,
-            "STRATEGY_UPDATE": _um_futures_strategy_update_handler,
-            "GRID_UPDATE": _um_futures_grid_update_handler,
-            "CONDITIONAL_ORDER_TRIGGER_REJECT": _um_futures_conditional_order_trigger_reject_handler,
-        }
-    },
-}
-
-
-
-
-def on_spot_message(_, message):
-    message = json.loads(message)
-    if "data" in message and "stream" in message:
-        data = message["data"]
-        
-        if isinstance(data, list):
-            # Multiple data points
-            for data_point in data:
-                _handle_spot_message_data_point(data_point)
-        else:
-            # Single data point
-            _handle_spot_message_data(data)
-
-    elif "code" in message:
-        error_code = message["code"]
-    
-    else:
-        raise ValueError(f"Unknown message type: {message}")
-
-
-def _handle_spot_message_data_point(data_point):
-    pass
-
-
-def _handle_spot_message_data(data):   
-    pass 
-
-def on_um_message(_, message):
-    message = json.loads(message)
-
