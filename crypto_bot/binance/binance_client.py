@@ -5,7 +5,7 @@ from binance.um_futures import UMFutures
 from binance.websocket.um_futures.websocket_client import UMFuturesWebsocketClient
 from binance.websocket.spot.websocket_stream import SpotWebsocketStreamClient
 
-from .message_handers import BinanceWSMessageHandler
+from .message_handler import BinanceWSMessageHandler
 from crypto_bot.utils.util import get_yes_or_no_input
 
 
@@ -25,14 +25,14 @@ class BinanceClient:
 		self.spot_listen_key = None
 		self.um_listen_key = None
 
-		self._authenticate(api_key, secret_key)
+		self._auth_and_get_listen_key(api_key, secret_key)
 
 		self.spot_ws_stream_client: SpotWebsocketStreamClient = None
 		self.um_ws_client: UMFuturesWebsocketClient = None
 
 		self._initialize_websockets()
 
-	def _authenticate(self, api_key, secret_key) -> None:
+	def _auth_and_get_listen_key(self, api_key, secret_key) -> None:
 		"""
 		Authenticate the user by either using the api key and secret key passed in
 		or by using the api key and secret key stored in the environment variables.
