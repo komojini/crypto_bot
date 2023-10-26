@@ -31,10 +31,10 @@ class BinanceWSMessageHandler:
                     "balanceUpdate": self._balance_update_handler,
                     "executionReport": self._execution_report_handler, # https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
                     "depthUpdate": self._depth_handler,
-                    "bookTicker": self._book_ticker_handler,
+                    "bookTicker": self._spot_book_ticker_handler,
                 },
             },
-            "um_futures": {
+            "um": {
                 "e": {
                     # Market Streams
                     "aggTrade": self._agg_trade_handler,
@@ -43,61 +43,121 @@ class BinanceWSMessageHandler:
                     "continuous_kline": self._continuous_kline_handler,
                     "24hrMiniTicker": self._miniticker_handler,
                     "24hrTicker": self._ticker_handler,
-                    "bookTicker": self._um_futures_book_ticker_handler,
+                    "bookTicker": self._um_book_ticker_handler,
                     "forceOrder": self._force_order_handler,
-                    "depthUpdate": self._um_futures_depth_handler,
+                    "depthUpdate": self._um_depth_handler,
                     "compositeIndex": self._composite_index_handler,
                     "contractInfo": self._contract_info_handler,
                     "assetIndexUpdate": self._asset_index_handler,
 
                     # User Data Streams
-                    "MARGIN_CALL": self._um_futures_margin_call_handler,
-                    "ACCOUNT_UPDATE": self._um_futures_account_update_handler,
-                    "ORDER_TRADE_UPDATE": self._um_futures_order_trade_update_handler,
-                    "ACCOUNT_CONFIG_UPDATE": self._um_futures_account_config_update_handler,
-                    "STRATEGY_UPDATE": self._um_futures_strategy_update_handler,
-                    "GRID_UPDATE": self._um_futures_grid_update_handler,
-                    "CONDITIONAL_ORDER_TRIGGER_REJECT": self._um_futures_conditional_order_trigger_reject_handler,
+                    "MARGIN_CALL": self._um_margin_call_handler,
+                    "ACCOUNT_UPDATE": self._um_account_update_handler,
+                    "ORDER_TRADE_UPDATE": self._um_order_trade_update_handler,
+                    "ACCOUNT_CONFIG_UPDATE": self._um_account_config_update_handler,
+                    "STRATEGY_UPDATE": self._um_strategy_update_handler,
+                    "GRID_UPDATE": self._um_grid_update_handler,
+                    "CONDITIONAL_ORDER_TRIGGER_REJECT": self._um_conditional_order_trigger_reject_handler,
                 },
             },
         }
 
 
-    UM_FUTURES_ACCOUNT_UPDATE_HANDLER_TREE = {}
-    UM_FUTURES_ORDER_TRADE_UPDATE_HANDLER_TREE = {}
-    UM_FUTURES_STRATEGY_UPDATE_HANDLER_TREE = {}
+    um_ACCOUNT_UPDATE_HANDLER_TREE = {}
+    um_ORDER_TRADE_UPDATE_HANDLER_TREE = {}
+    um_STRATEGY_UPDATE_HANDLER_TREE = {}
 
     EXECUTION_REPORT_HANDLER_TREE = {
         # See more here: https://binance-docs.github.io/apidocs/spot/en/#public-api-definitions
         
     }
+
+    
+    def _set_global_price(self, market: str, symbol: str, price: str):
+        globals()[f"Binance__{market}__{symbol}__price"] = price
     
 
     """Spot Websocket Handlers"""
 
-    def _agg_trade_handler(self, message):
+    def _agg_trade_handler(self, message, market: str, **kwargs):
+        """
+        Aggregate trade streams push trade information that is aggregated for a single taker order.
+
+        See more here: https://binance-docs.github.io/apidocs/futures/en/#aggregate-trade-streams
+        
+        e.g.: Binance__um__BTCUSDT__agg_trade
+        """
+        symbol = message["s"] # Symbol (e.g. "BTCUSDT")
+        # price = message["p"]
+        # quantity = message["q"]
+        # trade_time = message["T"]
+        globals()[f"Binance__{market}__{symbol}__agg_trade"] = message
+        self._set_global_price(market, symbol, message["p"])
+
+    def _trade_handler(self, message, **kwargs):
+        """
+        Trade streams push raw trade information; each trade has a unique buyer and seller.
+        
+        e.g.: Binance__um__BTCUSDT__trade
+        """
+        symbol = message["s"] # Symbol (e.g. "BTCUSDT")
+        globals()[f"Binance__spot__{symbol}__trade"] = message
+        self._set_global_price("spot", symbol, message["p"])
+
+    def _kline_handler(self, message, market: str, **kwargs):
+        """
+        Kline/candlestick Stream push updates to the current klines/candlestick every second.
+        
+        e.g.: Binance__um__BTCUSDT__kline__1m
+        """
+        symbol = message["s"] # Symbol (e.g. "BTCUSDT")
+        interval = message["k"]["i"] # Interval (e.g. "1m")
+        globals()[f"Binance__{market}__{symbol}__kline__{interval}"] = message
+        self._set_global_price(market, symbol, message["k"]["c"])
+
+    def _ticker_handler(self, message, market: str, **kwargs):
+        """
+        24hr rolling window ticker statistics for a single symbol pushed every second.
+        These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs.
+        
+        e.g.: 
+            - Binance__um__BTCUSDT__ticker: dict
+            - Binance__um__BTCUSDT__price: str
+        """
+        symbol = message["s"]
+        globals()[f"Binance__{market}__{symbol}__ticker"] = message
+        self._set_global_price(market, symbol, message["c"])
+
+    def _window_ticker_handler(self, message, **kwargs):
         raise NotImplementedError
 
-    def _trade_handler(self, message):
-        raise NotImplementedError
+    def _miniticker_handler(self, message, market: str, **kwargs):
+        """
+        24hr rolling window mini-ticker statistics. These are NOT the statistics of the UTC day.
+        but a 24hr rolling window for the previous 24hrs.
+        """
+        symbol = message["s"]
+        globals()[f"Binance__{market}__{symbol}__miniticker"] = message
+        self._set_global_price(market, symbol, message["c"])
 
-    def _kline_handler(self, message):
-        raise NotImplementedError
+    def _spot_book_ticker_handler(self, message, **kwargs):
+        """
+        Pushes any update to the best bid or ask's price or quantity in real-time for a specified symbol.
+        Payload:
+        {
+            "u":400900217,     // order book updateId
+            "s":"BNBUSDT",     // symbol
+            "b":"25.35190000", // best bid price
+            "B":"31.21000000", // best bid qty
+            "a":"25.36520000", // best ask price
+            "A":"40.66000000"  // best ask qty
+        }
+        e.g.: Binance__spot__BNBUSDT__book_ticker
+        """
+        globals()[f"Binance__spot__{message['s']}__book_ticker"] = message
 
-    def _ticker_handler(self, message):
-        raise NotImplementedError
-
-    def _window_ticker_handler(self, message):
-        raise NotImplementedError
-
-    def _miniticker_handler(self, message):
-        raise NotImplementedError
-
-    def _book_ticker_handler(self, message):
-        raise NotImplementedError
-
-    def _depth_handler(self, message):
-        raise NotImplementedError
+    def _depth_handler(self, message, market: str, **kwargs):
+        globals()[f"Binance__{market}__{message['s']}__depth"] = message
 
     def _outbound_account_info_handler(self, message):
         raise NotImplementedError
@@ -115,12 +175,23 @@ class BinanceWSMessageHandler:
     """UM Futures Websocket Handlers"""
 
     
-    def _mark_price_update_handler(self, message):
-        raise NotImplementedError
+    def _mark_price_update_handler(self, message, **kwargs):
+        """
+        Mark price and funding rate for a single symbol pushed every 3 or 1 seconds.
+        """
+        symbol = message["s"] # Symbol (e.g. "BTCUSDT")
+        mark_price = message["p"] # Mark price
+        funding_rate = message["r"] # Funding rate
+        index_price = message["i"] # Index price
+        next_funding_time = message["T"] # Next funding time
+        globals()[f"Binance__um__{symbol}__mark_price"] = mark_price
+        globals()[f"Binance__um__{symbol}__funding_rate"] = funding_rate
+        globals()[f"Binance__um__{symbol}__index_price"] = index_price
+        globals()[f"Binance__um__{symbol}__next_funding_time"] = next_funding_time
 
     def _continuous_kline_handler(self, message):
         raise NotImplementedError
-
+    
     def _force_order_handler(self, message):
         raise NotImplementedError
 
@@ -136,31 +207,50 @@ class BinanceWSMessageHandler:
     def _contract_info_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_depth_handler(self, message):
+    def _um_depth_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_book_ticker_handler(self, message):
+
+    def _um_book_ticker_handler(self, message, **kwargs):
+        """
+        Pushes any update to the best bid or ask's price or quantity in real-time for a specified symbol.
+        Payload:
+        {
+            "e": "bookTicker",  // Event type
+            "u": 400900217,     // order book updateId
+            "E": 1568014460893, // Event time
+            "T": 1568014460891, // transaction time
+            "s": "BNBUSDT",     // symbol
+            "b": "25.35190000", // best bid price
+            "B": "31.21000000", // best bid qty
+            "a": "25.36520000", // best ask price
+            "A": "40.66000000"  // best ask qty
+        }
+
+        e.g.: Binance__um__BNBUSDT__book_ticker
+        """
+        symbol = message["s"]
+        globals()[f"Binance__um__{symbol}__book_ticker"] = message
+
+    def _um_margin_call_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_margin_call_handler(self, message):
+    def _um_account_update_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_account_update_handler(self, message):
+    def _um_order_trade_update_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_order_trade_update_handler(self, message):
+    def _um_account_config_update_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_account_config_update_handler(self, message):
+    def _um_strategy_update_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_strategy_update_handler(self, message):
+    def _um_grid_update_handler(self, message):
         raise NotImplementedError
 
-    def _um_futures_grid_update_handler(self, message):
-        raise NotImplementedError
-
-    def _um_futures_conditional_order_trigger_reject_handler(self, message):
+    def _um_conditional_order_trigger_reject_handler(self, message, **kwargs):
         raise NotImplementedError
 
     def _unknown_event_type_handler(self, message, market: str, stream_name: str, **kwargs):
@@ -179,7 +269,7 @@ class BinanceWSMessageHandler:
         if event_type:
             handler = self.handler_tree[market]["e"].get(event_type)
             if handler:
-                handler(data_point)
+                handler(data_point, market=market)
             else:
                 self._unknown_event_type_handler(data_point, market, stream_name,
                                             user_message="Can't find handler for event type")
@@ -191,10 +281,10 @@ class BinanceWSMessageHandler:
             else:
                 self._unknown_event_type_handler(data_point, market, stream_name)
             
-            handler = self.HANDER_TREE[market]["e"].get(event_type)
+            handler = self.handler_tree[market]["e"].get(event_type)
 
             if handler:
-                handler(data_point)
+                handler(data_point, market=market)
             else:
                 self._unknown_event_type_handler(data_point, market, stream_name, 
                                             user_message="Can't find handler for event type")
@@ -240,7 +330,7 @@ class BinanceWSMessageHandler:
 
     def get_on_um_message_handler(self) -> callable:
         def on_um_message(_, message):
-            self._handle_full_message(message, "um_futures")
+            self._handle_full_message(message, "um")
         return on_um_message
 
     
@@ -489,7 +579,7 @@ STREAM_DESCRIPTION = {
             }
         },
     },
-    "um_futures": {
+    "um": {
         "e": {
             "aggTrade": {
                 # Same as spot
