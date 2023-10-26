@@ -157,3 +157,8 @@ class BinanceClient:
 			self.um_ws_client.subscribe(
 				stream=um_streams,
 			)
+
+	def stop_stream(self) -> None:
+		"""Stop both the spot and futures streams."""
+		self.spot_ws_stream_client.stop()
+		self.um_ws_client.stop()
