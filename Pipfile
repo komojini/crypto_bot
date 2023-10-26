@@ -4,6 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+binance-connector = "*"
+python-dotenv = "*"
+binance-futures-connector = "*"
 
 [dev-packages]
 
