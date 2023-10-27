@@ -1,6 +1,7 @@
 # cryptobot/main.py
 
 import os
+from decimal import Decimal
 from datetime import datetime
 from .binance.binance_client import BinanceClient
 from .binance.message_handler import BinanceWSMessageHandler
@@ -22,10 +23,13 @@ binance_client = BinanceClient(
 
 def fn():
     os.system("clear")
-    trb_book_ticker = m["binance"]["TRBUSDT"]["um"]["bookTicker"]
-    print(f"""
-TRBUSDT: {trb_book_ticker["b"]},
+    trb_um = m["binance"]["TRBUSDT"]["um"]
 
+    trb_funding_rate = trb_um["fundingRate"]
+    trb_funding_rate = Decimal(trb_funding_rate) * 100
+    trb_book_ticker = trb_um["bookTicker"]
+    print(f"""
+TRBUSDT: {trb_book_ticker["b"]} | {trb_book_ticker["a"]} | {trb_funding_rate} % |
 {datetime.fromtimestamp(int(trb_book_ticker["E"])/1000)}
 """)
 
