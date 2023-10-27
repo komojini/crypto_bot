@@ -30,6 +30,7 @@ def fn():
     trb_book_ticker = trb_um["bookTicker"]
     print(f"""
 TRBUSDT: {trb_book_ticker["b"]} | {trb_book_ticker["a"]} | {trb_funding_rate} % |
+
 {datetime.fromtimestamp(int(trb_book_ticker["E"])/1000)}
 """)
 
