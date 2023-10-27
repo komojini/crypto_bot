@@ -1,5 +1,6 @@
 import os
-
+import logging
+from binance.lib.utils import config_logging
 from binance.spot import Spot
 from binance.um_futures import UMFutures
 from binance.websocket.um_futures.websocket_client import UMFuturesWebsocketClient
@@ -8,6 +9,11 @@ from binance.websocket.spot.websocket_stream import SpotWebsocketStreamClient
 from .message_handler import BinanceWSMessageHandler
 from crypto_bot.utils.util import get_yes_or_no_input
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+config_logging(logging, logging.DEBUG)
 
 class BinanceClient:
 	"""
@@ -46,10 +52,10 @@ class BinanceClient:
 			secret_key = os.environ.get("BINANCE_SECRET_KEY")
 
 		if api_key is None or secret_key is None:
-			if get_yes_or_no_input("No api key or secret key found.\n \
-						  			Continue without authentication?\n \
-									Creating order and streaming user data will not be available.\n \
-						  			(y/n): "):
+			if get_yes_or_no_input("No api key or secret key found.\n" + \
+						  			"Continue without authentication?\n" + \
+									"Creating order and streaming user data will not be available.\n" + \
+						  			"(y/n): "):
 				self.spot_client = Spot()
 				self.um_client = UMFutures()
 				return
@@ -75,9 +81,9 @@ class BinanceClient:
 			secret_key = input("Enter secret key: ").strip()
 			
 			if not self._api_key_is_valid(api_key, secret_key): 	
-				if get_yes_or_no_input("Invalid api key or secret key.\n \
-										Try again?\n \
-										(y/n): "):
+				if get_yes_or_no_input("Invalid api key or secret key.\n" + \
+										"Try again?\n" + \
+										"(y/n): "):
 					continue
 				else:
 					print("\n\nContinuing without authentication.\n\n")

@@ -1,13 +1,15 @@
 import json
-
-
+import time
+from crypto_bot import market_data, update_market_data
 
 class BinanceWSMessageHandler:
     """
     A class that handles messages from the Binance websocket streams.
     """
-    def __init__(self):
+    def __init__(self,
+                 callback=None):
         self.handler_tree = None
+        self.callback = callback
 
         self._initialize_handler_tree()
     
@@ -72,11 +74,6 @@ class BinanceWSMessageHandler:
         
     }
 
-    
-    def _set_global_price(self, market: str, symbol: str, price: str):
-        globals()[f"Binance__{market}__{symbol}__price"] = price
-    
-
     """Spot Websocket Handlers"""
 
     def _agg_trade_handler(self, message, market: str, **kwargs):
@@ -84,49 +81,43 @@ class BinanceWSMessageHandler:
         Aggregate trade streams push trade information that is aggregated for a single taker order.
 
         See more here: https://binance-docs.github.io/apidocs/futures/en/#aggregate-trade-streams
-        
-        e.g.: Binance__um__BTCUSDT__agg_trade
         """
         symbol = message["s"] # Symbol (e.g. "BTCUSDT")
         # price = message["p"]
         # quantity = message["q"]
         # trade_time = message["T"]
-        globals()[f"Binance__{market}__{symbol}__agg_trade"] = message
-        self._set_global_price(market, symbol, message["p"])
+        update_market_data(
+            exchange="binance",
+            symbol=symbol,
+            market_type=market,
+            event_type="aggTrade",
+            data=message,
+        )
 
     def _trade_handler(self, message, **kwargs):
         """
         Trade streams push raw trade information; each trade has a unique buyer and seller.
-        
-        e.g.: Binance__um__BTCUSDT__trade
         """
         symbol = message["s"] # Symbol (e.g. "BTCUSDT")
-        globals()[f"Binance__spot__{symbol}__trade"] = message
-        self._set_global_price("spot", symbol, message["p"])
-
+        update_market_data("binance", symbol, "spot", "trade", message)
+    
     def _kline_handler(self, message, market: str, **kwargs):
         """
         Kline/candlestick Stream push updates to the current klines/candlestick every second.
         
-        e.g.: Binance__um__BTCUSDT__kline__1m
         """
         symbol = message["s"] # Symbol (e.g. "BTCUSDT")
         interval = message["k"]["i"] # Interval (e.g. "1m")
-        globals()[f"Binance__{market}__{symbol}__kline__{interval}"] = message
-        self._set_global_price(market, symbol, message["k"]["c"])
-
+        update_market_data("binance", symbol, market, f"kline__{interval}", message)
+    
     def _ticker_handler(self, message, market: str, **kwargs):
         """
         24hr rolling window ticker statistics for a single symbol pushed every second.
         These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs.
         
-        e.g.: 
-            - Binance__um__BTCUSDT__ticker: dict
-            - Binance__um__BTCUSDT__price: str
         """
         symbol = message["s"]
-        globals()[f"Binance__{market}__{symbol}__ticker"] = message
-        self._set_global_price(market, symbol, message["c"])
+        update_market_data("binance", symbol, market, "ticker", message)
 
     def _window_ticker_handler(self, message, **kwargs):
         raise NotImplementedError
@@ -137,8 +128,7 @@ class BinanceWSMessageHandler:
         but a 24hr rolling window for the previous 24hrs.
         """
         symbol = message["s"]
-        globals()[f"Binance__{market}__{symbol}__miniticker"] = message
-        self._set_global_price(market, symbol, message["c"])
+        update_market_data("binance", symbol, market, "miniTicker", message)
 
     def _spot_book_ticker_handler(self, message, **kwargs):
         """
@@ -152,12 +142,12 @@ class BinanceWSMessageHandler:
             "a":"25.36520000", // best ask price
             "A":"40.66000000"  // best ask qty
         }
-        e.g.: Binance__spot__BNBUSDT__book_ticker
         """
-        globals()[f"Binance__spot__{message['s']}__book_ticker"] = message
+        symbol = message["s"]
+        update_market_data("binance", symbol, "spot", "bookTicker", message)
 
     def _depth_handler(self, message, market: str, **kwargs):
-        globals()[f"Binance__{market}__{message['s']}__depth"] = message
+        update_market_data("binance", message["s"], market, "depth", message)
 
     def _outbound_account_info_handler(self, message):
         raise NotImplementedError
@@ -182,12 +172,11 @@ class BinanceWSMessageHandler:
         symbol = message["s"] # Symbol (e.g. "BTCUSDT")
         mark_price = message["p"] # Mark price
         funding_rate = message["r"] # Funding rate
-        index_price = message["i"] # Index price
         next_funding_time = message["T"] # Next funding time
-        globals()[f"Binance__um__{symbol}__mark_price"] = mark_price
-        globals()[f"Binance__um__{symbol}__funding_rate"] = funding_rate
-        globals()[f"Binance__um__{symbol}__index_price"] = index_price
-        globals()[f"Binance__um__{symbol}__next_funding_time"] = next_funding_time
+        update_market_data("binance", symbol, "um", "markPriceUpdate", message)
+        update_market_data("binance", symbol, "um", "markPrice", mark_price)
+        update_market_data("binance", symbol, "um", "fundingRate", funding_rate)
+        update_market_data("binance", symbol, "um", "nextFundingTime", next_funding_time)
 
     def _continuous_kline_handler(self, message):
         raise NotImplementedError
@@ -230,7 +219,7 @@ class BinanceWSMessageHandler:
         e.g.: Binance__um__BNBUSDT__book_ticker
         """
         symbol = message["s"]
-        globals()[f"Binance__um__{symbol}__book_ticker"] = message
+        update_market_data("binance", symbol, "um", "bookTicker", message)
 
     def _um_margin_call_handler(self, message):
         raise NotImplementedError
@@ -305,7 +294,10 @@ class BinanceWSMessageHandler:
         error_code = error.get("code")
         error_message = error.get("msg")
 
-        raise Exception(f"Error code {error_code}: {error_message}")
+        
+        print(f"Error code {error_code}: {error_message}, {error}")
+        time.sleep(1)
+        #raise Exception(f"Error code {error_code}: {error_message}, {error}")
 
 
     def _handle_full_message(self, message, market: str):
@@ -313,8 +305,6 @@ class BinanceWSMessageHandler:
         if "data" in message and "stream" in message:
             data = message["data"]
             stream_name = message["stream"]
-
-            del message # Free up memory
 
             if isinstance(data, list):
                 # Multiple data points
@@ -326,6 +316,9 @@ class BinanceWSMessageHandler:
         else:
             # Error
             self._handle_error(message)
+        
+        if self.callback: 
+            self.callback(message)
 
 
     def get_on_um_message_handler(self) -> callable:

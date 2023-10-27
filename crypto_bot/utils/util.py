@@ -3,6 +3,7 @@ import os
 import time 
 
 
+
 def get_yes_or_no_input(prompt: str) -> bool:
     """Get yes or no input from the user.
 
@@ -21,10 +22,20 @@ def get_yes_or_no_input(prompt: str) -> bool:
             print("Invalid input. Please enter 'y' or 'n'.")
 
 
-def wait_until_keyboard_interrupt() -> None:
+def repeat_running_until_keyboard_interrupt(
+        fn: callable = None,
+        interval: float = 1.0,
+) -> None:
     """Wait until a keyboard interrupt occurs."""
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        pass
+    
+    while True:
+        try:
+            if fn is not None:
+                fn()
+            time.sleep(interval)
+
+        except KeyboardInterrupt:
+            break
+        
+        except Exception as e:
+            time.sleep(interval)
