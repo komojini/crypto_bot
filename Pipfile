@@ -7,6 +7,10 @@ name = "pypi"
 binance-connector = "*"
 python-dotenv = "*"
 binance-futures-connector = "*"
+appnope = "*"
+pandas = "*"
+numpy = "*"
+matplotlib = "*"
 
 [dev-packages]
 ipykernel = "*"
